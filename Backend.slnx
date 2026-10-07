@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Application/Application.csproj" />
+  <Project Path="CareerHub/API.csproj" />
+  <Project Path="Common/Common.csproj" />
+  <Project Path="Domain/Domain.csproj" />
+  <Project Path="infrastructure/infrastructure.csproj" />
+</Solution>
