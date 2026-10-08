@@ -14,6 +14,14 @@ namespace Talenty
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            // Avoid the Windows Event Log provider, which requires elevated
+            // permissions and can throw while reporting otherwise normal errors.
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+
+            // Resolve configuration relative to the API assembly so launching with
+            // `dotnet run --project CareerHub/API.csproj` from the repository root works.
+            var configurationPath = AppContext.BaseDirectory;
 
             Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
             Console.WriteLine($"IsDevelopment: {builder.Environment.IsDevelopment()}");
@@ -21,6 +29,7 @@ namespace Talenty
             builder.Configuration.Sources.Clear();
             
             builder.Configuration
+                .SetBasePath(configurationPath)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
 
@@ -53,26 +62,6 @@ namespace Talenty
 
             builder.Configuration.AddEnvironmentVariables();
 
-            // Debug: Check if connection string is loaded
-            var connStr = builder.Configuration.GetConnectionString("DefaultConnection");
-            Console.WriteLine($"Connection String loaded: {!string.IsNullOrEmpty(connStr)}");
-            if (!string.IsNullOrEmpty(connStr))
-            {
-                Console.WriteLine($"Connection String: {connStr.Substring(0, Math.Min(50, connStr.Length))}...");
-            }
-            
-            // Try getting directly
-            var directConn = builder.Configuration["ConnectionStrings:DefaultConnection"];
-            Console.WriteLine($"Direct ConnectionStrings:DefaultConnection: {!string.IsNullOrEmpty(directConn)}");
-            if (!string.IsNullOrEmpty(directConn))
-            {
-                Console.WriteLine($"Direct: {directConn.Substring(0, Math.Min(50, directConn.Length))}...");
-            }
-            
-            // Check Jwt
-            var jwtSecret = builder.Configuration["Jwt:SecretKey"];
-            Console.WriteLine($"Jwt:SecretKey loaded: {!string.IsNullOrEmpty(jwtSecret)}");
-
             // Add services to the container.
 
             builder.Services.AddControllers();
@@ -92,6 +81,7 @@ namespace Talenty
             using (var scope = app.Services.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<AppDBcontext>();
+                await context.Database.MigrateAsync();
                 await DatabaseSeeder.SeedAsync(context);
                 Console.WriteLine("DONE DB");
             }
@@ -101,6 +91,7 @@ namespace Talenty
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();

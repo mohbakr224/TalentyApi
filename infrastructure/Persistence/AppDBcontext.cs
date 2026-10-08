@@ -1,4 +1,5 @@
 using Domain.Entities.Applications;
+using Domain.Entities.AI;
 using Domain.Entities.AuthenticationTokenEntities;
 using Domain.Entities.AuthenticationToken;
 using Domain.Entities.Candidates;
@@ -60,6 +61,7 @@ namespace infrastructure.Persistence
         public DbSet<InterviewEvaluationCriteria> InterviewEvaluationCriteria { get; set; }
         public DbSet<InterviewReport> InterviewReports { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<AiAnalysisJob> AiAnalysisJobs { get; set; }
 
         public DbSet<Resume> Resumes { get; set; }
         public DbSet<ResumeVersion> ResumeVersions { get; set; }

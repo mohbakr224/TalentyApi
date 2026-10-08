@@ -4,6 +4,7 @@ using Application.Interfaces.Persistence;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
 using infrastructure.Background;
+using infrastructure.Services.AI;
 using infrastructure.Email;
 using infrastructure.Persistence;
 using infrastructure.Repository.Applications;
@@ -105,6 +106,8 @@ namespace infrastructure
             services.AddScoped<IJwtService, JwtServices>();
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             services.AddScoped<IPermissionChecker, PermissionChecker>();
+            services.AddHttpClient<IAiProvider, OpenAiCompatibleProvider>();
+            services.AddScoped<IAiAnalysisService, AiAnalysisService>();
             services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
             // Business Services
@@ -123,6 +126,7 @@ namespace infrastructure
             services.AddScoped<IFileService, LocalFileStorageService>();
             services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
             services.AddHostedService<ResumeProcessingHostedService>();
+            services.AddHostedService<AiAnalysisJobProcessor>();
 
             return services;
         }

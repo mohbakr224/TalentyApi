@@ -43,6 +43,7 @@ namespace CareerHub.Controllers
         [HttpGet]
         public async Task<IActionResult> GetMyNotifications([FromQuery] int limit = 20, [FromQuery] int offset = 0, CancellationToken cancellationToken = default)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "notification.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -53,6 +54,7 @@ namespace CareerHub.Controllers
         [HttpGet("unread-count")]
         public async Task<IActionResult> GetUnreadCount()
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "notification.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -63,6 +65,7 @@ namespace CareerHub.Controllers
         [HttpPost("{id:guid}/read")]
         public async Task<IActionResult> MarkAsRead([FromRoute] Guid id)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "notification.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -76,6 +79,7 @@ namespace CareerHub.Controllers
         [HttpPost("read-all")]
         public async Task<IActionResult> MarkAllAsRead()
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "notification.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -90,4 +94,3 @@ namespace CareerHub.Controllers
         }
     }
 }
-

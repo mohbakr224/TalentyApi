@@ -23,6 +23,8 @@ namespace CareerHub.Controllers
         [Authorize]
         public async Task<IActionResult> Create([FromBody] CreateApplicationRequest request)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.application.create"))
+                return Forbid();
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(userIdClaim, out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });

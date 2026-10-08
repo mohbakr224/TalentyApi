@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+  </Folder>
   <Project Path="Application/Application.csproj" />
   <Project Path="CareerHub/API.csproj" />
   <Project Path="Common/Common.csproj" />

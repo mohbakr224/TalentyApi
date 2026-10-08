@@ -226,6 +226,11 @@ public static class DatabaseSeeder
             {
                 Name = "admin.users.manage",
                 Description = "Manage users"
+            },
+            new
+            {
+                Name = "ai.use",
+                Description = "Use AI career and recruitment features"
             }
         };
 
@@ -272,7 +277,8 @@ public static class DatabaseSeeder
                 "candidate.application.withdraw",
                 "job.read",
                 "interview.read",
-                "notification.read"
+                "notification.read",
+                "ai.use"
             },
 
             ["RECRUITER"] = new[]
@@ -294,7 +300,8 @@ public static class DatabaseSeeder
                 "interview.read",
                 "notification.send",
                 "notification.read",
-                "company.read"
+                "company.read",
+                "ai.use"
             },
 
             ["HR"] = new[]
@@ -318,7 +325,8 @@ public static class DatabaseSeeder
                 "notification.read",
                 "company.read",
                 "company.update",
-                "company.members.manage"
+                "company.members.manage",
+                "ai.use"
             },
 
             ["COMPANY_ADMIN"] = new[]
@@ -342,7 +350,8 @@ public static class DatabaseSeeder
                 "notification.read",
                 "company.read",
                 "company.update",
-                "company.members.manage"
+                "company.members.manage",
+                "ai.use"
             },
 
             ["ADMIN"] = permissionsData
