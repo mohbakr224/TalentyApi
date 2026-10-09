@@ -12,5 +12,6 @@ namespace Application.Interfaces.Persistence
         Task AddAsync(User user);
         Task DeleteAsync(User user);
         Task UpdateAsync(User user);
+        Task SaveChangesAsync();
     }
 }

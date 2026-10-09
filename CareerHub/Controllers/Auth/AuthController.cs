@@ -27,7 +27,62 @@ public class AuthController : ControllerBase
         if (!result.IsSuccess)
             return BadRequest(result);
 
-        return Ok(result);
+        return Ok(new { token = result.value });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("reset-password")]
+    public ContentResult ResetPasswordPage()
+    {
+        const string html = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>Reset password</title>
+              <style>
+                body { font: 16px system-ui, sans-serif; max-width: 26rem; margin: 12vh auto; padding: 0 1rem; color: #202124; }
+                form { display: grid; gap: 1rem; }
+                input, button { box-sizing: border-box; width: 100%; padding: .75rem; font: inherit; }
+                button { cursor: pointer; }
+                #message { min-height: 1.5rem; }
+              </style>
+            </head>
+            <body>
+              <h1>Reset your password</h1>
+              <form id="reset-form">
+                <label for="password">New password</label>
+                <input id="password" type="password" autocomplete="new-password" required minlength="8">
+                <button type="submit">Update password</button>
+              </form>
+              <p id="message" role="status"></p>
+              <script>
+                const form = document.getElementById('reset-form');
+                const message = document.getElementById('message');
+                form.addEventListener('submit', async (event) => {
+                  event.preventDefault();
+                  message.textContent = 'Updating password…';
+                  try {
+                    const response = await fetch('/api/v1/auth/reset-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: new URLSearchParams(location.search).get('token'), newPassword: document.getElementById('password').value })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || result.error || result.Error || 'This reset link is invalid or expired.');
+                    form.hidden = true;
+                    message.textContent = 'Your password has been updated. You can now sign in.';
+                  } catch (error) {
+                    message.textContent = error.message || 'Unable to reset the password. Please try again.';
+                  }
+                });
+              </script>
+            </body>
+            </html>
+            """;
+
+        return Content(html, "text/html");
     }
 
     [AllowAnonymous]

@@ -183,10 +183,19 @@ namespace Application.Features.Auth.Commands.Register
                 $"{_authBaseUrl}/api/v1/auth/verify-email" +
                 $"?token={Uri.EscapeDataString(verificationToken)}";
 
-            // 8. Send verification email
-            await _emailService.SendEmailVerificationAsync(
-                user.Email,
-                verificationLink);
+            // 8. Send verification email (don't fail registration if email fails)
+            try
+            {
+                await _emailService.SendEmailVerificationAsync(
+                    user.Email,
+                    verificationLink);
+            }
+            catch (Exception)
+            {
+                // Email delivery failed — registration still succeeds.
+                // The verification token is saved in DB; user can request resend.
+            }
+
             var roles = new List<string> { candidateRole.Name };
             var permissions = await _permissionService.GetPermissionsForUserAsync(user.Id);
             var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, roles, permissions);
@@ -226,3 +235,4 @@ namespace Application.Features.Auth.Commands.Register
         }
     }
 }
+

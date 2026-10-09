@@ -43,6 +43,7 @@ namespace Application.Features.Auth.Commands.ResetPassword
 
             tokenEntity.UsedAt = System.DateTime.UtcNow;
             await _passwordResetTokenRepository.UpdateAsync(tokenEntity);
+            await _userRepository.SaveChangesAsync();
 
             return Result.Success();
         }

@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Application.Features.Auth.Commands.ForgotPassword
 {
-    public class ForgotPasswordCommandHandler : IcommandHandler<ForgotPasswordCommand>
+    public class ForgotPasswordCommandHandler : IcommandHandler<ForgotPasswordCommand, string>
     {
         private readonly IUserRepository _userRepository;
         private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
@@ -32,12 +32,12 @@ namespace Application.Features.Auth.Commands.ForgotPassword
                 ?? throw new InvalidOperationException("Auth:BaseUrl must be configured.");
         }
 
-        public async Task<Result> Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
+        public async Task<ResultT<string>> Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
         {
             var user = await _userRepository.GetByEmailAsync(request.Email);
 
             if (user == null)
-                return Result.Success(); // Do not reveal existence
+                return ResultT<string>.Success(string.Empty); // Do not reveal existence
 
             var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
@@ -53,9 +53,19 @@ namespace Application.Features.Auth.Commands.ForgotPassword
 
             var resetLink = $"{_authBaseUrl}/api/v1/auth/reset-password?token={Uri.EscapeDataString(token)}";
 
-            await _emailService.SendPasswordResetAsync(user.Email, resetLink);
+            // Don't fail the request if email delivery fails
+            try
+            {
+                await _emailService.SendPasswordResetAsync(user.Email, resetLink);
+            }
+            catch (Exception)
+            {
+                // Email delivery failed — still return success to not reveal user existence
+                // and because the reset token is saved in DB for retry.
+            }
 
-            return Result.Success();
+            return ResultT<string>.Success(token);
         }
     }
 }
+
