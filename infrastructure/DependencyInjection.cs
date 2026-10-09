@@ -96,7 +96,9 @@ namespace infrastructure
                         ValidateAudience = !string.IsNullOrEmpty(jwtAudience),
                         ValidAudience = jwtAudience,
                         ValidateLifetime = true,
-                        ClockSkew = TimeSpan.Zero
+                        ClockSkew = TimeSpan.Zero,
+                        RoleClaimType = "role",
+                        NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
                     };
                 });
             }

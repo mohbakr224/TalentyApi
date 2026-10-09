@@ -31,9 +31,13 @@ namespace infrastructure.Security
 
             };
            
-            foreach (var role in roles) 
+            foreach (var role in roles)
             {
-            claims.Add(new Claim(ClaimTypes.Role,role));
+                if (string.IsNullOrWhiteSpace(role))
+                    continue;
+
+                // Keep the JWT claim name aligned with TokenValidationParameters.RoleClaimType.
+                claims.Add(new Claim("role", role.Trim().ToUpperInvariant()));
             }
             if (permissions != null)
             {
