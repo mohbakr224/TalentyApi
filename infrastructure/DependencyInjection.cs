@@ -97,7 +97,8 @@ namespace infrastructure
                         ValidAudience = jwtAudience,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero,
-                        RoleClaimType = "role",
+                        // JwtBearer maps the JWT "role" claim to ClaimTypes.Role by default.
+                        RoleClaimType = System.Security.Claims.ClaimTypes.Role,
                         NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
                     };
                 });
