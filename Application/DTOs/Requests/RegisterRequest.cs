@@ -20,5 +20,10 @@ namespace Application.DTOs.Requests
         [Required]
         [MinLength(3)]
         public string LastName { get; set; } = string.Empty;
+
+        [RegularExpression("^(?i:CANDIDATE|HR)$", ErrorMessage = "Role must be CANDIDATE or HR.")]
+        public string Role { get; set; } = nameof(RoleType.CANDIDATE);
+
+        public Guid? CompanyId { get; set; }
     }
 }

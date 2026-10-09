@@ -1,4 +1,5 @@
-﻿using Application.DTOs.Response;
+using Application.DTOs.Response;
+using Application.DTOs.Request;
 using Application.Interfaces.Persistence;
 using Application.Interfaces.AuthenticationToken;
 using Application.Interfaces.Security;
@@ -28,6 +29,7 @@ namespace Application.Features.Auth.Commands.Register
         private readonly IAccessTokenRepo _accessTokenRepo;
         private readonly IRefreshTokenRepo _refreshTokenRepo;
         private readonly IPermissionService _permissionService;
+        private readonly ICompanyService _companyService;
         private readonly string _authBaseUrl;
 
         private const int AccessTokenExpirationMinutes = 60;
@@ -44,6 +46,7 @@ namespace Application.Features.Auth.Commands.Register
             IAccessTokenRepo accessTokenRepo,
             IRefreshTokenRepo refreshTokenRepo,
             IPermissionService permissionService,
+            ICompanyService companyService,
             IConfiguration configuration)
         {
             _userRepository = userRepository;
@@ -57,6 +60,7 @@ namespace Application.Features.Auth.Commands.Register
             _accessTokenRepo = accessTokenRepo;
             _refreshTokenRepo = refreshTokenRepo;
             _permissionService = permissionService;
+            _companyService = companyService;
             _authBaseUrl = configuration["Auth:BaseUrl"]?.TrimEnd('/')
                 ?? throw new InvalidOperationException("Auth:BaseUrl must be configured.");
         }
@@ -78,15 +82,38 @@ namespace Application.Features.Auth.Commands.Register
                     "The email already exists.");
             }
 
-            // 2. Get CANDIDATE role
+            var requestedRole = request.Role?.Trim();
+            if (!string.Equals(requestedRole, nameof(RoleType.CANDIDATE), StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(requestedRole, nameof(RoleType.HR), StringComparison.OrdinalIgnoreCase))
+            {
+                return ResultT<AuthResponse>.Failure("Role must be CANDIDATE or HR.");
+            }
+
+            var isHr = string.Equals(requestedRole, nameof(RoleType.HR), StringComparison.OrdinalIgnoreCase);
+            if (isHr && !request.CompanyId.HasValue)
+            {
+                return ResultT<AuthResponse>.Failure("CompanyId is required when registering as HR.");
+            }
+
+            if (!isHr && request.CompanyId.HasValue)
+            {
+                return ResultT<AuthResponse>.Failure("CompanyId can only be provided when registering as HR.");
+            }
+
+            if (isHr && await _companyService.GetByIdAsync(request.CompanyId!.Value) == null)
+            {
+                return ResultT<AuthResponse>.Failure("The specified company was not found.");
+            }
+
+            // 2. Get the requested role
             var candidateRole =
                 await _roleRepository.GetByNameAsync(
-                    RoleType.CANDIDATE);
+                    isHr ? RoleType.HR : RoleType.CANDIDATE);
 
             if (candidateRole == null)
             {
                 return ResultT<AuthResponse>.Failure(
-                    "CANDIDATE role was not found.");
+                    $"{(isHr ? "HR" : "CANDIDATE")} role was not found.");
             }
 
             // 3. Create user
@@ -112,7 +139,7 @@ namespace Application.Features.Auth.Commands.Register
 
             await _userRepository.AddAsync(user);
 
-            // 4. Assign CANDIDATE role
+            // 4. Assign the selected system role
             var userRole = new UserRole
             {
                 UserId = user.Id,
@@ -120,6 +147,14 @@ namespace Application.Features.Auth.Commands.Register
             };
 
             await _userRoleRepository.AddASync(userRole);
+
+            if (isHr)
+            {
+                await _companyService.AddMemberAsync(
+                    request.CompanyId!.Value,
+                    new AddCompanyMemberRequest { UserId = user.Id, Role = nameof(RoleType.HR) },
+                    user.Id);
+            }
 
             // 5. Generate verification token
             var verificationToken =

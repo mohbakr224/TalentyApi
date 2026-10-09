@@ -51,7 +51,7 @@ namespace infrastructure.Services.Company
         public async Task<CompanyResponse?> GetByIdAsync(Guid id)
         {
             var c = await _dbContext.Companies
-                .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
             if (c == null) return null;
             return new CompanyResponse
             {
