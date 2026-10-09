@@ -31,16 +31,15 @@ namespace infrastructure.Repository.Identity
             return await _appDBContext.EmailVerificationTokens
                 .FirstOrDefaultAsync(x =>
                     x.Token == token &&
-                    !x.IsExpired &&
-                    !x.IsUsed);
+                    x.ExpireAt > DateTime.UtcNow &&
+                    x.UsedAt == null);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             EmailVerificationTokens token)
         {
             _appDBContext.EmailVerificationTokens.Update(token);
-
-            return Task.CompletedTask;
+            await _appDBContext.SaveChangesAsync();
         }
     }
 }
