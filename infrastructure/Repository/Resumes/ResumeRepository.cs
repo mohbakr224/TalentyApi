@@ -48,6 +48,16 @@ namespace infrastructure.Repository.Resumes
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<Resume>> GetAllAsync(int limit, int offset, CancellationToken cancellationToken)
+        {
+            return await _context.Resumes
+                .Where(r => !r.IsDeleted)
+                .OrderByDescending(r => r.CreatedDate)
+                .Skip(offset)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task AddVersionAsync(ResumeVersion version)
         {
             await _context.ResumeVersions.AddAsync(version);

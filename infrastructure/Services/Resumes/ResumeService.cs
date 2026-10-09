@@ -147,6 +147,26 @@ namespace infrastructure.Services.Resumes
             return result;
         }
 
+        public async Task<List<ResumeListItemResponse>> ListAllAsync(int limit, int offset, CancellationToken cancellationToken)
+        {
+            var list = await _resumeRepository.GetAllAsync(limit, offset, cancellationToken);
+            var resumeIds = list.Select(r => r.Id).ToList();
+            var versionsByResume = await _dbContext.ResumeVersions
+                .Where(v => resumeIds.Contains(v.ResumeId))
+                .ToListAsync(cancellationToken);
+
+            return list.Select(r => new ResumeListItemResponse
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Status = r.Status,
+                CurrentVersionId = r.CurrentVersionId,
+                CurrentVersionNumber = versionsByResume.FirstOrDefault(v => v.ResumeId == r.Id && v.Id == r.CurrentVersionId)?.VersionNumber,
+                CreatedDate = r.CreatedDate,
+                UpdatedDate = r.UpdatedAt
+            }).ToList();
+        }
+
         public async Task<ResumeResponse?> GetByIdAsync(Guid resumeId, Guid userId)
         {
             var resume = await _resumeRepository.GetByIdAsync(resumeId);

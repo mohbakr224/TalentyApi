@@ -59,12 +59,19 @@ namespace CareerHub.Controllers
             [FromQuery] int offset = 0,
             CancellationToken cancellationToken = default)
         {
-            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
-            if (!TryGetUserId(out var userId))
-                return Unauthorized(new { success = false, message = "Invalid user" });
+            // Admins can list every candidate's resume; candidates only see their own.
+            var isAdmin = User.IsInRole("ADMIN");
+            if (!isAdmin && !await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
 
             limit = Math.Clamp(limit, 1, 100);
             offset = Math.Max(offset, 0);
+            if (isAdmin)
+            {
+                var allResumes = await _resumeService.ListAllAsync(limit, offset, cancellationToken);
+                return Ok(new { success = true, data = allResumes });
+            }
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(new { success = false, message = "Invalid user" });
 
             try
             {

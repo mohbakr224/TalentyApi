@@ -14,6 +14,8 @@ namespace Application.Interfaces.Services
 
         Task<List<ResumeListItemResponse>> ListAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken);
 
+        Task<List<ResumeListItemResponse>> ListAllAsync(int limit, int offset, CancellationToken cancellationToken);
+
         Task<ResumeResponse?> GetByIdAsync(Guid resumeId, Guid userId);
 
         Task<Stream?> DownloadAsync(Guid resumeId, Guid userId, CancellationToken cancellationToken);

@@ -16,6 +16,8 @@ namespace Application.Interfaces.Persistence
 
         Task<List<Resume>> GetByCandidateIdAsync(Guid candidateId, int limit, int offset, CancellationToken cancellationToken);
 
+        Task<List<Resume>> GetAllAsync(int limit, int offset, CancellationToken cancellationToken);
+
         // Version operations
         Task AddVersionAsync(ResumeVersion version);
 
