@@ -28,6 +28,8 @@ namespace infrastructure.Repository.Identity
         public async Task<User?> GetByEmailAsync(string email)
         {
             return await _dbContext.Users
+                .Include(user => user.UserRoles)
+                    .ThenInclude(userRole => userRole.Role)
                 .FirstOrDefaultAsync(x => x.Email == email);
         }
 
@@ -45,7 +47,10 @@ namespace infrastructure.Repository.Identity
 
         public async Task<User> GetUserByIdAsync(Guid id)
         {
-          return  await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == id);
+            return await _dbContext.Users
+                .Include(user => user.UserRoles)
+                    .ThenInclude(userRole => userRole.Role)
+                .FirstOrDefaultAsync(x => x.Id == id);
         }
     }
 }
