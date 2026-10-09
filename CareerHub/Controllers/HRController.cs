@@ -19,7 +19,7 @@ namespace CareerHub.Controllers
 {
     [ApiController]
     [Route("api/v1/hr")]
-    [Authorize]
+    [Authorize(Roles = "RECRUITER,HR,COMPANY_ADMIN,ADMIN")]
     public class HRController : ControllerBase
     {
         private readonly IJobService _jobService;
@@ -61,6 +61,7 @@ namespace CareerHub.Controllers
         [HttpGet("company")]
         public async Task<IActionResult> GetMyCompany()
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "company.read")) return Forbid();
             if (!TryGetUserId(out var userId)) return Unauthorized();
 
             var company = await _companyService.GetCompanyForUserAsync(userId);
@@ -73,6 +74,7 @@ namespace CareerHub.Controllers
         [HttpGet("dashboard")]
         public async Task<IActionResult> GetDashboard([FromQuery] Guid? companyId = null)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "application.read")) return Forbid();
             if (!TryGetUserId(out var userId)) return Unauthorized();
 
             var comp = await ResolveCompanyAsync(userId, companyId);
@@ -128,6 +130,7 @@ namespace CareerHub.Controllers
         [HttpGet("jobs")]
         public async Task<IActionResult> GetJobs([FromQuery] Guid? companyId = null, CancellationToken cancellationToken = default)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "job.read")) return Forbid();
             if (!TryGetUserId(out var userId)) return Unauthorized();
 
             var comp = await ResolveCompanyAsync(userId, companyId);
@@ -160,6 +163,7 @@ namespace CareerHub.Controllers
         [HttpGet("jobs/{id:guid}")]
         public async Task<IActionResult> GetJob([FromRoute] Guid id)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "job.read")) return Forbid();
             var job = await _jobService.GetByIdAsync(id);
             if (job == null) return NotFound(new { success = false, message = "Job not found" });
             return Ok(new { success = true, data = job });
@@ -403,7 +407,7 @@ namespace CareerHub.Controllers
             if (stream == null)
                 return NotFound(new { success = false, message = "Resume file not found" });
 
-            return File(stream, "application/octet-stream", $"resume-{resumeId}");
+            return File(stream, "application/pdf", $"resume-{resumeId}.pdf");
         }
 
         [HttpGet("resumes/{resumeId:guid}/preview")]
@@ -565,6 +569,7 @@ namespace CareerHub.Controllers
         [HttpGet("team")]
         public async Task<IActionResult> GetTeamMembers([FromQuery] Guid? companyId = null)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "company.read")) return Forbid();
             if (!TryGetUserId(out var userId)) return Unauthorized();
 
             var comp = await ResolveCompanyAsync(userId, companyId);
@@ -664,4 +669,3 @@ namespace CareerHub.Controllers
         }
     }
 }
-

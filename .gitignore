@@ -3,5 +3,8 @@
 **/obj/
 *.user
 *.suo
-appsettings.Development.json
 .env
+appsettings.json
+# Uploaded files and private CVs
+CareerHub/storage/
+CareerHub/wwwroot/storage/

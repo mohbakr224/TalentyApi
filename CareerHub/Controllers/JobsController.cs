@@ -22,7 +22,7 @@ namespace CareerHub.Controllers
         }
 
         [HttpPost]
-        [Authorize]
+        [Authorize(Roles = "RECRUITER,HR,COMPANY_ADMIN,ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreateJobRequest request)
         {
             if (!await _permissionChecker.HasPermissionAsync(User, "job.create")) return Forbid();
@@ -49,7 +49,7 @@ namespace CareerHub.Controllers
 
         // Candidate applies to a job. Body may contain optional ResumeId and CoverLetter.
         [HttpPost("{id}/apply")]
-        [Authorize]
+        [Authorize(Roles = "CANDIDATE,ADMIN")]
         public async Task<IActionResult> Apply([FromRoute] Guid id, [FromBody] Application.DTOs.Request.CreateApplicationRequest? request)
         {
             if (!await _permissionChecker.HasPermissionAsync(User, "candidate.application.create")) return Forbid();

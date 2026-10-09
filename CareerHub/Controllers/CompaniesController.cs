@@ -1,6 +1,7 @@
 using Application.DTOs.Request;
 using Application.DTOs.Response;
 using Application.Interfaces.Services;
+using Application.Interfaces.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -14,16 +15,19 @@ namespace CareerHub.Controllers
     public class CompaniesController : ControllerBase
     {
         private readonly ICompanyService _companyService;
+        private readonly IPermissionChecker _permissionChecker;
 
-        public CompaniesController(ICompanyService companyService)
+        public CompaniesController(ICompanyService companyService, IPermissionChecker permissionChecker)
         {
             _companyService = companyService;
+            _permissionChecker = permissionChecker;
         }
 
-        [Authorize]
+        [Authorize(Roles = "HR,COMPANY_ADMIN,ADMIN")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateCompanyRequest request)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "company.update")) return Forbid();
             var company = await _companyService.CreateAsync(request);
             return Ok(new { success = true, data = company });
         }

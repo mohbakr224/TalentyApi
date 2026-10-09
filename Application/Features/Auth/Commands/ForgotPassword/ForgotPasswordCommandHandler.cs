@@ -4,6 +4,7 @@ using Common.Messaging;
 using Common.Results;
 using Domain.Entities.AuthenticationTokenEntities;
 using Domain.Entities.Identity;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Security.Cryptography;
 using System.Threading;
@@ -16,15 +17,19 @@ namespace Application.Features.Auth.Commands.ForgotPassword
         private readonly IUserRepository _userRepository;
         private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
         private readonly IEmailService _emailService;
+        private readonly string _authBaseUrl;
 
         public ForgotPasswordCommandHandler(
             IUserRepository userRepository,
             IPasswordResetTokenRepository passwordResetTokenRepository,
-            IEmailService emailService)
+            IEmailService emailService,
+            IConfiguration configuration)
         {
             _userRepository = userRepository;
             _passwordResetTokenRepository = passwordResetTokenRepository;
             _emailService = emailService;
+            _authBaseUrl = configuration["Auth:BaseUrl"]?.TrimEnd('/')
+                ?? throw new InvalidOperationException("Auth:BaseUrl must be configured.");
         }
 
         public async Task<Result> Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
@@ -46,7 +51,7 @@ namespace Application.Features.Auth.Commands.ForgotPassword
 
             await _passwordResetTokenRepository.AddAsync(tokenEntity);
 
-            var resetLink = $"https://localhost:7000/api/v1/auth/reset-password?token={token}";
+            var resetLink = $"{_authBaseUrl}/api/v1/auth/reset-password?token={Uri.EscapeDataString(token)}";
 
             await _emailService.SendPasswordResetAsync(user.Email, resetLink);
 

@@ -1,12 +1,15 @@
 ﻿using Application.DTOs.Response;
 using Application.Interfaces.Persistence;
+using Application.Interfaces.AuthenticationToken;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
 using Common.Messaging;
 using Common.Results;
 using Domain.Entities.AuthenticationTokenEntities;
+using Domain.Entities.AuthenticationToken;
 using Domain.Entities.Identity;
 using Domain.Enums;
+using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
 
 namespace Application.Features.Auth.Commands.Register
@@ -21,6 +24,14 @@ namespace Application.Features.Auth.Commands.Register
             _emailVerificationRepository;
         private readonly IPasswordHasherServices _passwordHasher;
         private readonly IEmailService _emailService;
+        private readonly IJwtService _jwtService;
+        private readonly IAccessTokenRepo _accessTokenRepo;
+        private readonly IRefreshTokenRepo _refreshTokenRepo;
+        private readonly IPermissionService _permissionService;
+        private readonly string _authBaseUrl;
+
+        private const int AccessTokenExpirationMinutes = 60;
+        private const int RefreshTokenExpirationDays = 30;
 
         public RegisterCommandHandler(
             IUserRepository userRepository,
@@ -28,7 +39,12 @@ namespace Application.Features.Auth.Commands.Register
             IUserRoleRepository userRoleRepository,
             IEmailVerificationTokenRepository emailVerificationRepository,
             IPasswordHasherServices passwordHasher,
-            IEmailService emailService)
+            IEmailService emailService,
+            IJwtService jwtService,
+            IAccessTokenRepo accessTokenRepo,
+            IRefreshTokenRepo refreshTokenRepo,
+            IPermissionService permissionService,
+            IConfiguration configuration)
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
@@ -37,6 +53,12 @@ namespace Application.Features.Auth.Commands.Register
                 emailVerificationRepository;
             _passwordHasher = passwordHasher;
             _emailService = emailService;
+            _jwtService = jwtService;
+            _accessTokenRepo = accessTokenRepo;
+            _refreshTokenRepo = refreshTokenRepo;
+            _permissionService = permissionService;
+            _authBaseUrl = configuration["Auth:BaseUrl"]?.TrimEnd('/')
+                ?? throw new InvalidOperationException("Auth:BaseUrl must be configured.");
         }
 
         public async Task<ResultT<AuthResponse>> Handle(
@@ -123,24 +145,46 @@ namespace Application.Features.Auth.Commands.Register
 
             // 7. Create verification link
             var verificationLink =
-                $"https://localhost:7000/api/v1/auth/verify-email" +
-                $"?token={verificationToken}";
+                $"{_authBaseUrl}/api/v1/auth/verify-email" +
+                $"?token={Uri.EscapeDataString(verificationToken)}";
 
             // 8. Send verification email
             await _emailService.SendEmailVerificationAsync(
                 user.Email,
                 verificationLink);
-            // 10. Return response
+            var roles = new List<string> { candidateRole.Name };
+            var permissions = await _permissionService.GetPermissionsForUserAsync(user.Id);
+            var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, roles, permissions);
+            var accessTokenExpiresAt = DateTime.UtcNow.AddMinutes(AccessTokenExpirationMinutes);
+
+            await _accessTokenRepo.AddAccessToken(
+                new AccessToken
+                {
+                    UserId = user.Id,
+                    Token = accessToken,
+                    ExpireAt = accessTokenExpiresAt
+                },
+                cancellationToken);
+
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            await _refreshTokenRepo.AddRefreshToken(
+                new RefreshToken
+                {
+                    UserId = user.Id,
+                    Token = refreshToken,
+                    ExpireAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
+                },
+                cancellationToken);
+
             var response = new AuthResponse
             {
                 UserId = user.Id,
-
                 Email = user.Email,
-
-                Roles = new List<string>
-                {
-                    candidateRole.Name
-                }
+                Roles = roles,
+                Permissions = permissions,
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                AccessTokenExpiresAt = accessTokenExpiresAt
             };
 
             return ResultT<AuthResponse>.Success(response);

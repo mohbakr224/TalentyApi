@@ -4,6 +4,7 @@ using infrastructure;
 using infrastructure.Persistence;
 using Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Talenty.OpenApi;
 
@@ -73,7 +74,10 @@ namespace Talenty
             // Authorization policies: we will add a fallback policy registration point here.
             builder.Services.AddAuthorization(options =>
             {
-                // Example: dynamic policies can be added later; keep default policy strict
+                // Endpoints must be authenticated unless explicitly marked AllowAnonymous.
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
 
             var app = builder.Build();

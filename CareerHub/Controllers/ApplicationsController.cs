@@ -20,7 +20,7 @@ namespace CareerHub.Controllers
         }
 
         [HttpPost]
-        [Authorize]
+        [Authorize(Roles = "CANDIDATE,ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreateApplicationRequest request)
         {
             if (!await _permissionChecker.HasPermissionAsync(User, "candidate.application.create"))
@@ -34,9 +34,10 @@ namespace CareerHub.Controllers
         }
 
         [HttpGet("me")]
-        [Authorize]
+        [Authorize(Roles = "CANDIDATE,ADMIN")]
         public async Task<IActionResult> MyApplications([FromQuery] int limit = 20, [FromQuery] int offset = 0)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.application.read")) return Forbid();
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(userIdClaim, out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
@@ -46,7 +47,7 @@ namespace CareerHub.Controllers
         }
 
         [HttpGet("{id}")]
-        [Authorize]
+        [Authorize(Roles = "CANDIDATE,RECRUITER,HR,COMPANY_ADMIN,ADMIN")]
         public async Task<IActionResult> Get([FromRoute] Guid id)
         {
             var app = await _applicationService.GetByIdAsync(id);
@@ -57,7 +58,10 @@ namespace CareerHub.Controllers
 
             // Allow if owner (candidate) or has permission to view applications
             if (app.CandidateId == userId)
+            {
+                if (!await _permissionChecker.HasPermissionAsync(User, "candidate.application.read")) return Forbid();
                 return Ok(new { success = true, data = app });
+            }
 
             var hasPerm = await _permissionChecker.HasPermissionAsync(User, "applications.view");
             if (hasPerm)
@@ -67,7 +71,7 @@ namespace CareerHub.Controllers
         }
 
         [HttpPost("{id}/status")]
-        [Authorize]
+        [Authorize(Roles = "RECRUITER,HR,COMPANY_ADMIN,ADMIN")]
         public async Task<IActionResult> ChangeStatus([FromRoute] Guid id, [FromQuery] string status, [FromBody] string? reason = null)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

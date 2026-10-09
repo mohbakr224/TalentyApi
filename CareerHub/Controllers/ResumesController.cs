@@ -1,5 +1,6 @@
 using Application.DTOs.Response;
 using Application.Interfaces.Services;
+using Application.Interfaces.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -8,14 +9,16 @@ namespace CareerHub.Controllers
 {
     [ApiController]
     [Route("api/v1/resumes")]
-    [Authorize]
+    [Authorize(Roles = "CANDIDATE,ADMIN")]
     public class ResumesController : ControllerBase
     {
         private readonly IResumeService _resumeService;
+        private readonly IPermissionChecker _permissionChecker;
 
-        public ResumesController(IResumeService resumeService)
+        public ResumesController(IResumeService resumeService, IPermissionChecker permissionChecker)
         {
             _resumeService = resumeService;
+            _permissionChecker = permissionChecker;
         }
 
         [HttpPost]
@@ -24,6 +27,7 @@ namespace CareerHub.Controllers
             [FromForm] ResumeUploadRequest request,
             CancellationToken cancellationToken)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.upload")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -55,6 +59,7 @@ namespace CareerHub.Controllers
             [FromQuery] int offset = 0,
             CancellationToken cancellationToken = default)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -75,6 +80,7 @@ namespace CareerHub.Controllers
         [HttpGet("{resumeId:guid}")]
         public async Task<IActionResult> Get(Guid resumeId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -98,6 +104,7 @@ namespace CareerHub.Controllers
         [HttpGet("{resumeId:guid}/download")]
         public async Task<IActionResult> Download(Guid resumeId, CancellationToken cancellationToken)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -106,7 +113,7 @@ namespace CareerHub.Controllers
                 var stream = await _resumeService.DownloadAsync(resumeId, userId, cancellationToken);
                 return stream == null
                     ? NotFound(new { success = false, message = "Resume file not found" })
-                    : File(stream, "application/octet-stream", $"resume-{resumeId}");
+                    : File(stream, "application/pdf", $"resume-{resumeId}.pdf");
             }
             catch (UnauthorizedAccessException)
             {
@@ -121,6 +128,7 @@ namespace CareerHub.Controllers
         [HttpGet("{resumeId:guid}/preview")]
         public async Task<IActionResult> Preview(Guid resumeId, CancellationToken cancellationToken)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -129,9 +137,6 @@ namespace CareerHub.Controllers
                 var resume = await _resumeService.GetByIdAsync(resumeId, userId);
                 if (resume == null)
                     return NotFound(new { success = false, message = "Resume not found" });
-
-                if (resume.Name?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) != true)
-                    return BadRequest(new { success = false, message = "Preview is supported only for PDF resumes" });
 
                 var stream = await _resumeService.DownloadAsync(resumeId, userId, cancellationToken);
                 return stream == null
@@ -151,6 +156,7 @@ namespace CareerHub.Controllers
         [HttpDelete("{resumeId:guid}")]
         public async Task<IActionResult> Delete(Guid resumeId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.upload")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -172,6 +178,7 @@ namespace CareerHub.Controllers
         [HttpPost("{resumeId:guid}/restore")]
         public async Task<IActionResult> Restore(Guid resumeId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.upload")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -197,6 +204,7 @@ namespace CareerHub.Controllers
             [FromForm] ResumeUploadRequest request,
             CancellationToken cancellationToken)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.upload")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -229,6 +237,7 @@ namespace CareerHub.Controllers
         [HttpGet("{resumeId:guid}/versions")]
         public async Task<IActionResult> Versions(Guid resumeId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -250,6 +259,7 @@ namespace CareerHub.Controllers
         [HttpGet("{resumeId:guid}/versions/{versionId:guid}")]
         public async Task<IActionResult> Version(Guid resumeId, Guid versionId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.read")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 
@@ -273,6 +283,7 @@ namespace CareerHub.Controllers
         [HttpPost("{resumeId:guid}/versions/{versionId:guid}/current")]
         public async Task<IActionResult> SetCurrentVersion(Guid resumeId, Guid versionId)
         {
+            if (!await _permissionChecker.HasPermissionAsync(User, "candidate.resume.upload")) return Forbid();
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid user" });
 

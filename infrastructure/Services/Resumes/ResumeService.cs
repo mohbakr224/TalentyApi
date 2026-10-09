@@ -5,6 +5,8 @@ using Domain.Entities.Resumes;
 using infrastructure.Persistence;
 using infrastructure.Background;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,22 +23,25 @@ namespace infrastructure.Services.Resumes
         private readonly IFileService _fileService;
         private readonly AppDBcontext _dbContext;
         private readonly IBackgroundTaskQueue _taskQueue;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<ResumeService> _logger;
 
         // Allowed mime types and extensions
         private static readonly Dictionary<string, string[]> _allowed = new()
         {
-            { "application/pdf", new[] { ".pdf" } },
-            { "application/vnd.openxmlformats-officedocument.wordprocessingml.document", new[] { ".docx" } }
+            { "application/pdf", new[] { ".pdf" } }
         };
 
         private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
 
-        public ResumeService(IResumeRepository resumeRepository, IFileService fileService, AppDBcontext dbContext, IBackgroundTaskQueue taskQueue)
+        public ResumeService(IResumeRepository resumeRepository, IFileService fileService, AppDBcontext dbContext, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<ResumeService> logger)
         {
             _resumeRepository = resumeRepository;
             _fileService = fileService;
             _dbContext = dbContext;
             _taskQueue = taskQueue;
+            _scopeFactory = scopeFactory;
+            _logger = logger;
         }
 
         private void ValidateFile(string fileName, string contentType, long size)
@@ -100,46 +105,7 @@ namespace infrastructure.Services.Resumes
             }
 
             // Enqueue background parsing job
-            _taskQueue.Enqueue(async ct =>
-            {
-                try
-                {
-                    // Simple parsing placeholder: read file and set ExtractedText length
-                    using var s = await _fileService.GetAsync(upload.FileId, ct);
-                    string extracted = string.Empty;
-                    if (s != null)
-                    {
-                        using var ms = new MemoryStream();
-                        await s.CopyToAsync(ms, ct);
-                        // do nothing real: just set a placeholder
-                        extracted = $"Extracted {ms.Length} bytes";
-                    }
-
-                    var dbver = await _dbContext.ResumeVersions.FirstOrDefaultAsync(v => v.Id == version.Id, ct);
-                    if (dbver != null)
-                    {
-                        dbver.ExtractedText = extracted;
-                        dbver.StructuredData = JsonSerializer.Serialize(new { parsed = true });
-                        await _dbContext.SaveChangesAsync(ct);
-                    }
-
-                    var dbresume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resume.Id, ct);
-                    if (dbresume != null)
-                    {
-                        dbresume.Status = "COMPLETED";
-                        await _dbContext.SaveChangesAsync(ct);
-                    }
-                }
-                catch
-                {
-                    var dbresume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resume.Id, CancellationToken.None);
-                    if (dbresume != null)
-                    {
-                        dbresume.Status = "FAILED";
-                        await _dbContext.SaveChangesAsync(CancellationToken.None);
-                    }
-                }
-            });
+            _taskQueue.Enqueue(ct => ProcessResumeAsync(upload.FileId, resume.Id, version.Id, ct));
 
             return new ResumeResponse
             {
@@ -159,10 +125,14 @@ namespace infrastructure.Services.Resumes
 
             var list = await _resumeRepository.GetByCandidateIdAsync(profile.Id, limit, offset, cancellationToken);
 
+            var versionsByResume = await _dbContext.ResumeVersions
+                .Where(v => list.Select(r => r.Id).Contains(v.ResumeId))
+                .ToListAsync(cancellationToken);
+
             var result = new List<ResumeListItemResponse>();
             foreach (var r in list)
             {
-                var currentVersionNumber = r.versions.FirstOrDefault(v => v.Id == r.CurrentVersionId)?.VersionNumber;
+                var currentVersionNumber = versionsByResume.FirstOrDefault(v => v.ResumeId == r.Id && v.Id == r.CurrentVersionId)?.VersionNumber;
                 result.Add(new ResumeListItemResponse
                 {
                     Id = r.Id,
@@ -286,45 +256,7 @@ namespace infrastructure.Services.Resumes
             resume.Status = "PROCESSING";
             await _resumeRepository.UpdateAsync(resume);
 
-            // Enqueue parsing job (same placeholder)
-            _taskQueue.Enqueue(async ct =>
-            {
-                try
-                {
-                    using var s = await _fileService.GetAsync(upload.FileId, ct);
-                    string extracted = string.Empty;
-                    if (s != null)
-                    {
-                        using var ms = new MemoryStream();
-                        await s.CopyToAsync(ms, ct);
-                        extracted = $"Extracted {ms.Length} bytes";
-                    }
-
-                    var dbver = await _dbContext.ResumeVersions.FirstOrDefaultAsync(v => v.Id == version.Id, ct);
-                    if (dbver != null)
-                    {
-                        dbver.ExtractedText = extracted;
-                        dbver.StructuredData = JsonSerializer.Serialize(new { parsed = true });
-                        await _dbContext.SaveChangesAsync(ct);
-                    }
-
-                    var dbresume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resume.Id, ct);
-                    if (dbresume != null)
-                    {
-                        dbresume.Status = "COMPLETED";
-                        await _dbContext.SaveChangesAsync(ct);
-                    }
-                }
-                catch
-                {
-                    var dbresume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resume.Id, CancellationToken.None);
-                    if (dbresume != null)
-                    {
-                        dbresume.Status = "FAILED";
-                        await _dbContext.SaveChangesAsync(CancellationToken.None);
-                    }
-                }
-            });
+            _taskQueue.Enqueue(ct => ProcessResumeAsync(upload.FileId, resume.Id, version.Id, ct));
 
             return new ResumeVersionResponse
             {
@@ -431,6 +363,57 @@ namespace infrastructure.Services.Resumes
             if (resume == null || resume.IsDeleted) return null;
 
             return await _fileService.GetAsync(resume.FileId, cancellationToken);
+        }
+
+        private async Task ProcessResumeAsync(Guid fileId, Guid resumeId, Guid versionId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var fileService = scope.ServiceProvider.GetRequiredService<IFileService>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDBcontext>();
+
+                using var fileStream = await fileService.GetAsync(fileId, cancellationToken);
+                if (fileStream == null)
+                    throw new FileNotFoundException($"Uploaded resume file {fileId} was not found.");
+
+                using var memoryStream = new MemoryStream();
+                await fileStream.CopyToAsync(memoryStream, cancellationToken);
+
+                var version = await dbContext.ResumeVersions.FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken);
+                if (version == null)
+                    throw new InvalidOperationException($"Resume version {versionId} was not found.");
+
+                version.ExtractedText = $"Extracted {memoryStream.Length} bytes";
+                version.StructuredData = JsonSerializer.Serialize(new { parsed = true });
+
+                var resume = await dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resumeId, cancellationToken);
+                if (resume == null)
+                    throw new InvalidOperationException($"Resume {resumeId} was not found.");
+
+                resume.Status = "COMPLETED";
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Failed to process resume {ResumeId}, version {VersionId}.", resumeId, versionId);
+
+                try
+                {
+                    using var failureScope = _scopeFactory.CreateScope();
+                    var dbContext = failureScope.ServiceProvider.GetRequiredService<AppDBcontext>();
+                    var resume = await dbContext.Resumes.FirstOrDefaultAsync(r => r.Id == resumeId, CancellationToken.None);
+                    if (resume != null)
+                    {
+                        resume.Status = "FAILED";
+                        await dbContext.SaveChangesAsync(CancellationToken.None);
+                    }
+                }
+                catch (Exception statusException)
+                {
+                    _logger.LogError(statusException, "Failed to mark resume {ResumeId} as failed.", resumeId);
+                }
+            }
         }
     }
 }

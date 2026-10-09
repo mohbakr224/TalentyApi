@@ -28,8 +28,7 @@ namespace infrastructure.Email
             var username =
                 _configuration["Email:Username"];
 
-            var password =
-                _configuration["Email:Password"];
+            var password = "ryifjqqeyjlqjakt";
 
             using var client =
                 new SmtpClient(smtpHost, smtpPort)

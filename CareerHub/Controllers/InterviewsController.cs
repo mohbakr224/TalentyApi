@@ -12,7 +12,7 @@ namespace CareerHub.Controllers
 {
     [ApiController]
     [Route("api/v1/interviews")]
-    [Authorize]
+    [Authorize(Roles = "CANDIDATE,RECRUITER,HR,COMPANY_ADMIN,ADMIN")]
     public class InterviewsController : ControllerBase
     {
         private readonly IInterviewService _interviewService;
@@ -155,4 +155,3 @@ namespace CareerHub.Controllers
         }
     }
 }
-
